@@ -1,0 +1,43 @@
+{
+  "name": "duwende",
+  "version": "0.1.0-beta.0",
+  "description": "A flexible server framework with dynamic resource loading",
+  "main": "index.js",
+  "module": "index.js",
+  "type": "module",
+  "bin": {
+    "duwende": "./cli.js"
+  },
+  "files": [
+    "index.js",
+    "resource.js",
+    "server.js",
+    "tool.js",
+    "cli.js",
+    "docs/**/*"
+  ],
+  "keywords": [
+    "server",
+    "framework",
+    "dynamic",
+    "resource",
+    "bun"
+  ],
+  "author": "Ten X Development Corporation",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tenxd/duwende.git"
+  },
+  "bugs": {
+    "url": "https://github.com/tenxd/duwende/issues"
+  },
+  "homepage": "https://github.com/tenxd/duwende#readme",
+  "peerDependencies": {
+    "bun": "^1.0.0"
+  },
+  "engines": {
+    "bun": ">=1.0.0"
+  },
+  "devDependencies": {}
+}
