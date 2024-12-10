@@ -138,34 +138,42 @@ export class Resource {
 
     const renderer = methodRenderers[request.method];
     if (renderer) {
-      return renderer.call(this, request, id, path);
+      try {
+        return await renderer.call(this, request, id, path);
+      } catch (error) {
+        return this.response(500, {
+          error: 'Internal Server Error',
+          message: error.message,
+          stack: error.stack
+        });
+      }
     } else {
-      return new Response('Method Not Allowed', { status: 405 });
+      return this.response(405, 'Method Not Allowed');
     }
   }
 
   async renderList(request) {
-    return new Response('Not Found', { status: 404 });
+    return this.response(404, 'Not Found');
   }
 
   async renderGet(request, id, path) {
-    return new Response('Not Found', { status: 404 });
+    return this.response(404, 'Not Found');
   }
 
   async renderPost(request, id, path) {
-    return new Response('Not Found', { status: 404 });
+    return this.response(404, 'Not Found');
   }
 
   async renderPut(request, id, path) {
-    return new Response('Not Found', { status: 404 });
+    return this.response(404, 'Not Found');
   }
 
   async renderPatch(request, id, path) {
-    return new Response('Not Found', { status: 404 });
+    return this.response(404, 'Not Found');
   }
 
   async renderDelete(request, id, path) {
-    return new Response('Not Found', { status: 404 });
+    return this.response(404, 'Not Found');
   }
 
   async handle(request, id, path) {
@@ -179,33 +187,41 @@ export class Resource {
 
     const handler = methodHandlers[request.method];
     if (handler) {
-      return handler.call(this, request, id, path);
+      try {
+        return await handler.call(this, request, id, path);
+      } catch (error) {
+        return this.response(500, {
+          error: 'Internal Server Error',
+          message: error.message,
+          stack: error.stack
+        });
+      }
     } else {
-      return new Response('Method Not Allowed', { status: 405 });
+      return this.response(405, 'Method Not Allowed');
     }
   }
 
   async handleList(request) {
-    return new Response('Not Found', { status: 404 });
+    return this.response(404, 'Not Found');
   }
 
   async handleGet(request, id, path) {
-    return new Response('Not Found', { status: 404 });
+    return this.response(404, 'Not Found');
   }
 
   async handlePost(request, id, path) {
-    return new Response('Not Found', { status: 404 });
+    return this.response(404, 'Not Found');
   }
 
   async handlePut(request, id, path) {
-    return new Response('Not Found', { status: 404 });
+    return this.response(404, 'Not Found');
   }
 
   async handlePatch(request, id, path) {
-    return new Response('Not Found', { status: 404 });
+    return this.response(404, 'Not Found');
   }
 
   async handleDelete(request, id, path) {
-    return new Response('Not Found', { status: 404 });
+    return this.response(404, 'Not Found');
   }
 }
