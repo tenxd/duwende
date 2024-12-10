@@ -87,6 +87,44 @@ export class Resource {
     this.service = service;
     this.name = name;
     this.config = config;
+    // Check instance config first, fall back to global config, default to true if neither specified
+    this.logging = config?.logging ?? config?.global?.logging ?? true;
+  }
+
+  response(status, content, headers = {}) {
+    const defaultHeaders = {
+      'Content-Type': 'application/json',
+    };
+
+    // Merge default headers with custom headers
+    const finalHeaders = { ...defaultHeaders, ...headers };
+
+    // Convert content to JSON if it's an object
+    const body = typeof content === 'object' ? 
+      JSON.stringify(content) : 
+      String(content);
+
+    // If content type is JSON but content is a string, update header
+    if (typeof content === 'string' && finalHeaders['Content-Type'] === 'application/json') {
+      finalHeaders['Content-Type'] = 'text/plain';
+    }
+
+    return new Response(body, {
+      status,
+      headers: finalHeaders
+    });
+  }
+
+  log(name, value, isAssertion = false) {
+    if (!this.logging) return;
+
+    const prefix = `[${this.name}]`;
+    
+    if (isAssertion) {
+      console.assert(value, `${prefix} ${name}`);
+    } else {
+      console.log(`${prefix} ${name}:`, value);
+    }
   }
 
   async render(request, id, path) {

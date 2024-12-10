@@ -1,0 +1,5 @@
+{
+  "global": {
+    "resourcePath": "services/${service}/resources/${name}.js"
+  }
+}
