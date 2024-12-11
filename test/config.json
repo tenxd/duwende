@@ -1,5 +1,19 @@
 {
-  "global": {
+  "global": { 
+    "logging": false,
+    "shared": "global",
     "resourcePath": "services/${service}/resources/${name}.js"
+  },
+  "services": {
+    "test": { 
+      "logging": true,
+      "shared": "service",
+      "serviceOnly": "service-specific"
+    }
+  },
+  "resources": {
+    "hello": {
+      "shared": "instance"
+    }
   }
 }

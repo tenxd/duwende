@@ -19,10 +19,13 @@ export class Resource {
 
     let code;
     const globalConfig = config.global;
-    const instanceConfig = config.instance;
-    instanceConfig.global = config.global;
+    const instanceConfig = {
+      ...config.instance,
+      global: config.global,
+      service: config.service
+    };
 
-    const defaultPath = `services/\${service}/resources/\${name}.js`;
+    const defaultPath = `services/${service}/resources/${name}.js`;
     const resourcePath = globalConfig?.resourcePath || defaultPath;
     const interpolatedPath = resourcePath.replace(/\$\{(\w+)\}/g, (_, v) => ({ hostname, service, name })[v]);
     

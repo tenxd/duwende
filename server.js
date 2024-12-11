@@ -63,7 +63,8 @@ export class Server {
 
     const resourceConfig = {
       global: this.config.global || {},
-      instance: this.config.resources && this.config.resources[resourceName] || {}
+      service: this.config.services?.[service] || {},
+      instance: this.config.resources?.[resourceName] || {}
     };
 
     const resourceInstance = await Resource.register(hostname, service, resourceName, resourceConfig);
