@@ -34,10 +34,10 @@
   },
   "homepage": "https://github.com/tenxd/duwende#readme",
   "peerDependencies": {
-    "bun": "^1.0.0"
+    "bun": "^1.2.0"
   },
   "engines": {
-    "bun": ">=1.0.0"
+    "bun": ">=1.2.0"
   },
   "devDependencies": {}
 }
