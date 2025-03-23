@@ -61,6 +61,14 @@ export class Server {
     const id = pathParts[2];
     const remainingPath = pathParts.slice(3).join('/');
 
+    // Check if the resourceName ends with .json
+    const isJsonRequest = resourceName.endsWith('.json');
+
+    // Remove the .json extension for resource name
+    if (isJsonRequest) {
+      resourceName = resourceName.slice(0, -5); // Remove .json
+    }
+
     const resourceConfig = {
       global: this.config.global || {},
       service: this.config.services?.[service] || {},
@@ -71,7 +79,7 @@ export class Server {
     if (!resourceInstance) return new Response('Resource not found', { status: 404 });
 
     const acceptHeader = request.headers.get('Accept');
-    if (acceptHeader && acceptHeader.includes('json')) {
+    if (acceptHeader && acceptHeader.includes('json') || isJsonRequest) {
       return resourceInstance.handle(request, id, remainingPath);
     }
     return resourceInstance.render(request, id, remainingPath);
