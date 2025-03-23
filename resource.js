@@ -137,6 +137,7 @@ export class Resource {
       PUT: this.renderPut,
       PATCH: this.renderPatch,
       DELETE: this.renderDelete,
+      OPTIONS: this.renderOptions,
     };
 
     const renderer = methodRenderers[request.method];
@@ -176,6 +177,10 @@ export class Resource {
   }
 
   async renderDelete(request, id, path) {
+    return this.response(404, 'Not Found');
+  }
+
+  async renderOptions(request, id, path) {
     return this.response(404, 'Not Found');
   }
 
