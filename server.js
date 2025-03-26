@@ -57,7 +57,7 @@ export class Server {
 
     const pathParts = path.split('/').slice(1);
     const service = pathParts[0] || '';
-    const resourceName = pathParts[1] || 'index';
+    let resourceName = pathParts[1] || 'index';
     const id = pathParts[2];
     const remainingPath = pathParts.slice(3).join('/');
 
