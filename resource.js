@@ -191,6 +191,7 @@ export class Resource {
       PUT: this.handlePut,
       PATCH: this.handlePatch,
       DELETE: this.handleDelete,
+      OPTIONS: this.handleOptions,
     };
 
     const handler = methodHandlers[request.method];
@@ -230,6 +231,10 @@ export class Resource {
   }
 
   async handleDelete(request, id, path) {
+    return this.response(404, 'Not Found');
+  }
+
+  async handleOptions(request, id, path) {
     return this.response(404, 'Not Found');
   }
 }
