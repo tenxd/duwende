@@ -89,12 +89,24 @@ export class Server {
     await this.loadConfig();
     await this.loadTools();
 
+    // The default idle timeout is 10 seconds.
+    // This is used if no value is provided in config.json.
+    const DEFAULT_IDLE_TIMEOUT_SEC = 10;
+
+    // Determine the final port: config value (preferred) or the argument/default (1111)
+    const finalPort = this.config.port ?? port;
+
+    // Determine the final idle timeout: config value (preferred) or the new default
+    const finalIdleTimeout = this.config.idleTimeout ?? DEFAULT_IDLE_TIMEOUT_SEC;
+
     this.server = Bun.serve({
       fetch: (request) => this.handleRequest(request),
-      port: port
+      port: finalPort,
+      idleTimeout: finalIdleTimeout
     });
 
     console.log(`Listening on http://${this.server.hostname}:${this.server.port} ...`);
+    console.log(`Connection Idle Timeout set to ${finalIdleTimeout}s.`);
   }
 
   stop() {
