@@ -1,11 +1,12 @@
 import { Resource } from './resource.js';
 import { readdir, readFile } from 'fs/promises';
 import path from 'path';
-
+import { SessionLogger } from './logger.js';
 export class Server {
   constructor() {
     this.config = {};
     this.server = null;
+    this.logger = null;
   }
 
   async loadConfig() {
@@ -19,6 +20,9 @@ export class Server {
     } catch (error) {
       console.warn(`Config error: ${error.message}. Using empty configuration.`);
     }
+
+    // Initialize logger AFTER config is loaded
+    this.logger = new SessionLogger(this.config.logging || {});
   }
 
   async loadTools() {
@@ -39,7 +43,7 @@ export class Server {
             about: tool.about(),
             initSchema: tool.init_schema(),
             inputSchema: tool.in_schema(),
-            outputSchema: tool.out_schema()
+            outputSchema: tool.out_schema(),
           };
         } else {
           console.error(`Failed to load ${name}: No valid export found`);
@@ -51,13 +55,12 @@ export class Server {
   }
 
   async handleRequest(request) {
+    const startTime = Date.now();
     const url = new URL(request.url);
-    const hostname = url.hostname;
-    const path = url.pathname;
 
-    const pathParts = path.split('/').slice(1);
-    const service = pathParts[0] || '';
-    let resourceName = pathParts[1] || 'index';
+    const pathParts = url.pathname.split("/").slice(1);
+    const service = pathParts[0] || "";
+    let resourceName = pathParts[1] || "index";
     const id = pathParts[2];
     const remainingPath = pathParts.slice(3).join('/');
 
@@ -72,17 +75,62 @@ export class Server {
     const resourceConfig = {
       global: this.config.global || {},
       service: this.config.services?.[service] || {},
-      instance: this.config.resources?.[resourceName] || {}
+      instance: this.config.resources?.[resourceName] || {},
     };
 
-    const resourceInstance = await Resource.register(hostname, service, resourceName, resourceConfig);
-    if (!resourceInstance) return new Response('Resource not found', { status: 404 });
+    const resourceInstance = await Resource.register(
+      url.hostname,
+      service,
+      resourceName,
+      resourceConfig
+    );
 
-    const acceptHeader = request.headers.get('Accept');
-    if (acceptHeader && acceptHeader.includes('json') || isJsonRequest) {
-      return resourceInstance.handle(request, id, remainingPath);
+    if (!resourceInstance) {
+      const response = new Response("Resource not found", { status: 404 });
+      response.headers.set("X-Response-Time", `${Date.now() - startTime}ms`);
+
+      // Log with session support
+      const sessionId = await this.logger.logRequest(request, response, {
+        service,
+        resource: resourceName,
+        id
+      });
+
+      // Set session cookie if newly generated
+      const cookieHeader = request.headers.get("cookie") || "";
+      if (!cookieHeader.includes(`session_id=${sessionId}`)) {
+        response.headers.append(
+          "Set-Cookie",
+          `session_id=${sessionId}; Path=/; HttpOnly; SameSite=Lax; Max-Age=86400`
+        );
+      }
+
+      return response;
     }
-    return resourceInstance.render(request, id, remainingPath);
+
+    const acceptHeader = request.headers.get("accept");
+    let response;
+
+    if ((acceptHeader && acceptHeader.includes("json")) || isJsonRequest) {
+      response = await resourceInstance.handle(request, id, remainingPath);
+    } else {
+      response = await resourceInstance.render(request, id, remainingPath);
+    }
+
+    // Response time
+    const responseTime = Date.now() - startTime;
+    if (!response.headers.has("X-Response-Time")) {
+      response.headers.set("X-Response-Time", `${responseTime}ms`);
+    }
+
+    // Logging
+    await this.logger.logRequest(request, response, {
+      service,
+      resource: resourceName,
+      id,
+    });
+
+    return response;
   }
 
   async start(port = 1111) {
@@ -102,11 +150,15 @@ export class Server {
     this.server = Bun.serve({
       fetch: (request) => this.handleRequest(request),
       port: finalPort,
-      idleTimeout: finalIdleTimeout
+      idleTimeout: finalIdleTimeout,
     });
 
     console.log(`Listening on http://${this.server.hostname}:${this.server.port} ...`);
     console.log(`Connection Idle Timeout set to ${finalIdleTimeout}s.`);
+
+    if (this.config.logging?.enabled) {
+      console.log(`Request logging enabled (level: ${this.config.logging.level || "basic"})`);
+    }
   }
 
   stop() {
