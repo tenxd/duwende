@@ -1,7 +1,7 @@
 import { Resource } from './resource.js';
 import { readdir, readFile } from 'fs/promises';
 import path from 'path';
-import { SessionLogger } from './logger.js';
+import { SessionLogger } from './sessionLogger.js';
 export class Server {
   constructor() {
     this.config = {};
