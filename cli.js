@@ -185,7 +185,10 @@ duwende
       global: {
         resourcePath: "services/\${service}/resources/\${name}.js"
       },
-      resources: {}
+      resources: {},
+      // Explicit, so a new project starts without the 0.x default warning and keeps query strings and
+      // session cookies out of its request log.
+      logging: { enabled: true, level: "basic", query: false, rotate: "daily", retainDays: 30, sessionCookie: "never" }
     }, null, 2)
   };
 

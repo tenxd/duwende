@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.3.0 (beta, branch `release/0.3`; 0.3.0-beta.3)
+## 0.3.0 (2026-10-20)
 
 **Requires Bun 1.4.3 or later.** On Bun 1.3.14, under concurrent load (about 20 requests in flight), Bun's built-in
 PostgreSQL client (`Bun.SQL`) handed queries other queries' results: text values were parsed as JSON, rows came back
@@ -84,4 +84,4 @@ Each will have a flag that restores the 0.x behaviour.
 with the DUWENDE it has installed and again with this checkout, then lists any test that passes before and fails
 after. The original application is never touched. `--baseline <dir>` installs a given DUWENDE package for the
 baseline run, which is needed when the application's `node_modules/duwende` links to a working checkout. To try the
-beta in an application directly: `bun add github:tenxd/duwende#release/0.3`.
+release in an application: `bun add duwende@0.3.0`.
