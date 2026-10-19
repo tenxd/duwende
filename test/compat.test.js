@@ -1,0 +1,237 @@
+// Compatibility: a 0.1 configuration behaves as 0.1 did, and each new option does what it says.
+// Requests go through Server.handleRequest without opening a port.
+import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
+import { mkdirSync, mkdtempSync, readdirSync, rmSync, utimesSync, writeFileSync } from 'fs';
+import { tmpdir } from 'os';
+import path from 'path';
+import { Server } from '../server.js';
+import { Resource } from '../resource.js';
+import { Tool } from '../tool.js';
+import { SessionLogger } from '../sessionLogger.js';
+
+const ROOT = path.resolve(import.meta.dir, '..');
+const FIXTURE = path.join(import.meta.dir, 'compat');
+const original = process.cwd();
+
+beforeAll(() => {
+  // Fixtures import 'duwende' as applications do: a shim package re-exporting this checkout (a symlink to the
+  // checkout would contain itself, which Bun will not resolve).
+  const shim = path.join(FIXTURE, 'node_modules', 'duwende');
+  mkdirSync(shim, { recursive: true });
+  writeFileSync(path.join(shim, 'package.json'), JSON.stringify({ name: 'duwende', type: 'module', main: 'index.js' }));
+  writeFileSync(path.join(shim, 'index.js'), `export * from '${path.join(ROOT, 'index.js')}';\n`);
+  process.chdir(FIXTURE);
+});
+afterAll(() => {
+  process.chdir(original);
+  rmSync(path.join(FIXTURE, 'tmp'), { recursive: true, force: true });
+  rmSync(path.join(FIXTURE, 'logs'), { recursive: true, force: true });
+});
+
+/** A server with the fixture config plus overrides in global (and logging). */
+async function server(global = {}, logging = { enabled: false }) {
+  const instance = new Server();
+  await instance.loadConfig();
+  instance.config.global = { ...instance.config.global, isolateInstances: true, ...global };
+  instance.config.logging = logging;
+  instance.logger = new SessionLogger(logging);
+  instance.instances = {};
+  Tool.validation = global.toolValidation || 'warn';
+  await instance.loadTools();
+  return instance;
+}
+
+const call = async (instance, method, url, { json = true, headers = {} } = {}) => {
+  const response = await instance.handleRequest(new Request(url, { method, headers: { ...(json ? { accept: 'application/json' } : {}), ...headers } }));
+  const text = await response.text();
+  return { status: response.status, text, headers: response.headers, body: (() => { try { return JSON.parse(text); } catch { return text; } })() };
+};
+
+const quietly = async (fn) => {
+  const errors = [];
+  const original = console.error;
+  console.error = (...args) => errors.push(args.join(' '));
+  try { return { result: await fn(), errors }; } finally { console.error = original; }
+};
+
+describe('0.1 behaviour by default', () => {
+  test('an application method named dispatch, this.log and this.logging still work', async () => {
+    const s = await server();
+    const posted = await call(s, 'POST', 'http://localhost/app/unit/42');
+    expect(posted.body).toEqual({ result: 'dispatched to 42', logging: true });
+  });
+
+  test('a resource importing the framework relative to its tmp/ copy still loads (copy is the default)', async () => {
+    const s = await server();
+    expect((await call(s, 'GET', 'http://localhost/app/legacy/1')).body).toEqual({ ok: true });
+  });
+
+  test('a method the resource does not implement answers 404, an unknown HTTP method 405', async () => {
+    const s = await server();
+    expect((await call(s, 'GET', 'http://localhost/app/empty/1')).status).toBe(404);
+    expect((await call(s, 'PUT', 'http://localhost/app/empty/1')).status).toBe(404);
+    expect((await call(s, 'HEAD', 'http://localhost/app/empty/1')).status).toBe(405);
+  });
+
+  test('a null body is JSON null; path segments reach resources raw', async () => {
+    const s = await server();
+    const empty = await call(s, 'GET', 'http://localhost/app/nothing/1');
+    expect([empty.text, empty.headers.get('content-type')]).toEqual(['null', 'application/json']);
+    const raw = await call(s, 'GET', 'http://localhost/app/unit/a%20b/c%2Fd');
+    expect(raw.body).toMatchObject({ id: 'a%20b', rest: 'c%2Fd' });
+  });
+
+  test('the shared Resource.instances registry can still be reset by assignment', async () => {
+    const s = new Server();
+    await s.loadConfig();
+    Resource.instances = {};
+    await call(s, 'GET', 'http://localhost/app/unit/1');
+    expect(Object.keys(Resource.instances)).toEqual(['localhost/app/unit']);
+    expect(Resource.instances['localhost/app/unit'].instance.name).toBe('unit');
+    Resource.instances = {};
+  });
+});
+
+describe('safer defaults that are invisible to applications', () => {
+  test('a thrown error answers a neutral 500 and is logged; debugErrors restores the 0.1 body', async () => {
+    const s = await server();
+    const { result, errors } = await quietly(() => call(s, 'GET', 'http://localhost/app/boom/1'));
+    expect(result.status).toBe(500);
+    expect(result.body).toEqual({ error: 'server_error' });
+    expect(errors.join(' ')).toContain('secret detail');
+    const debug = await server({ debugErrors: true });
+    const detailed = await quietly(() => call(debug, 'GET', 'http://localhost/app/boom/1'));
+    expect(detailed.result.body).toMatchObject({ error: 'Internal Server Error', message: 'secret detail' });
+  });
+
+  test('unknown paths answer a quiet 404', async () => {
+    const s = await server();
+    const { result, errors } = await quietly(async () => [
+      await call(s, 'GET', 'http://localhost/favicon.ico', { json: false }),
+      await call(s, 'GET', 'http://localhost/app/nope'),
+      await call(s, 'GET', 'http://localhost/../etc/passwd'),
+    ]);
+    expect(result.map((r) => r.status)).toEqual([404, 404, 404]);
+    expect(errors).toEqual([]);
+  });
+
+  test('cached instances are capped, least recently used dropped first; made-up hosts reuse one module', async () => {
+    const s = await server({ maxInstances: 3 });
+    for (const host of ['a', 'b', 'c', 'd', 'e']) await call(s, 'GET', `http://${host}.test/app/unit/1`);
+    expect(Object.keys(s.instances).sort()).toEqual(['c.test/app/unit', 'd.test/app/unit', 'e.test/app/unit']);
+    const classes = new Set(Object.values(s.instances).map((entry) => entry.instance.constructor));
+    expect(classes.size).toBe(1);
+  });
+
+  test('a session cookie is never set as "null" when logging is off', async () => {
+    const s = await server();
+    const missing = await call(s, 'GET', 'http://localhost/app/nope');
+    expect(missing.headers.get('set-cookie')).toBeNull();
+  });
+});
+
+describe('opt-in options', () => {
+  test('resourceImport direct: a resource imports a module relative to its own file', async () => {
+    const s = await server({ resourceImport: 'direct' });
+    expect((await call(s, 'GET', 'http://localhost/app/shared/team')).body).toEqual({ message: 'hello team' });
+    const copy = await server();
+    const { result } = await quietly(() => call(copy, 'GET', 'http://localhost/app/shared/team'));
+    expect(result.status).toBe(404);
+  });
+
+  test('strictMethods answers an unimplemented method with 405', async () => {
+    const s = await server({ strictMethods: true });
+    expect((await call(s, 'GET', 'http://localhost/app/empty/1')).status).toBe(405);
+  });
+
+  test('decodePath decodes segments', async () => {
+    const s = await server({ decodePath: true });
+    expect((await call(s, 'GET', 'http://localhost/app/unit/a%20b')).body.id).toBe('a b');
+  });
+
+  test('hosts: a mapped host starts at the resource; "*" maps every other host; unmapped hosts keep the prefix', async () => {
+    const mapped = await server({ hosts: { 'shop.test': 'app' } });
+    expect((await call(mapped, 'GET', 'http://shop.test/unit/7')).body.id).toBe('7');
+    expect((await call(mapped, 'GET', 'http://other.test/app/unit/8')).body.id).toBe('8');
+    const wildcard = await server({ hosts: { '*': 'app' } });
+    expect((await call(wildcard, 'GET', 'http://any.test/unit/9')).body.id).toBe('9');
+  });
+
+  test('static serves files under its prefix and nothing outside its directory', async () => {
+    const s = await server({ static: { prefix: '/assets', dir: 'public' } });
+    expect((await call(s, 'GET', 'http://localhost/assets/hello.txt', { json: false })).text).toBe('static hello\n');
+    expect((await call(s, 'GET', 'http://localhost/assets/..%2Fconfig.json', { json: false })).status).toBe(404);
+    expect((await call(s, 'GET', 'http://localhost/assets/%E0%A4%A', { json: false })).status).toBe(404);
+  });
+
+  test('toolPaths adds tools from more directories without replacing loaded ones', async () => {
+    const extra = mkdtempSync(path.join(tmpdir(), 'duwende-tools-'));
+    writeFileSync(path.join(extra, 'extra_tool.js'), `export class ExtraTool { static about() { return 'x'; } static init_schema() { return {}; } static in_schema() { return {}; } static out_schema() { return {}; } }\nexport const extra_tool = ExtraTool;\n`);
+    await server({ toolPaths: [extra] });
+    expect(Resource.tools.extra_tool.path).toBe(extra);
+    expect(Resource.tools.needy_tool).toBeDefined();
+    rmSync(extra, { recursive: true, force: true });
+  });
+
+  test('tool validation: warn reports once, strict throws, off is silent', async () => {
+    await server();
+    const NeedyTool = Resource.tools.needy_tool.tool;
+    const warnings = [];
+    const warn = console.warn;
+    console.warn = (message) => warnings.push(message);
+    try {
+      Tool.validation = 'warn';
+      new NeedyTool({});
+      new NeedyTool({});
+      new NeedyTool({ name: 'ok', size: 3 });
+      expect(warnings.filter((m) => m.includes('missing required parameter: name'))).toHaveLength(1);
+      expect(warnings.some((m) => m.includes('"integer"'))).toBe(true);
+      Tool.validation = 'strict';
+      expect(() => new NeedyTool({})).toThrow('missing required parameter: name');
+      expect(() => new NeedyTool({ name: 5 })).toThrow('must be string');
+      Tool.validation = 'off';
+      const before = warnings.length;
+      new NeedyTool({ name: 5 });
+      expect(warnings.length).toBe(before);
+    } finally {
+      console.warn = warn;
+      Tool.validation = 'warn';
+    }
+  });
+
+  test('logging: path-only or allowlisted query, daily files, retention, cookie modes', async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'duwende-logs-'));
+    const pathOnly = new SessionLogger({ query: false, sessionDir: dir });
+    expect(pathOnly.loggedUrl('http://x.test/a/b?token=secret&q=1')).toBe('http://x.test/a/b');
+    const allow = new SessionLogger({ query: ['q'], sessionDir: dir });
+    expect(allow.loggedUrl('http://x.test/a?token=secret&q=1')).toBe('http://x.test/a?q=1');
+    expect(new SessionLogger({}).loggedUrl('http://x.test/a?q=1')).toBe('http://x.test/a?q=1');
+
+    const s = await server({}, { enabled: true, rotate: 'daily', query: false, sessionDir: dir, sessionCookie: 'always' });
+    const first = await call(s, 'GET', 'http://localhost/app/unit/1?token=secret');
+    await call(s, 'GET', 'http://localhost/app/unit/2');
+    expect(first.headers.get('set-cookie')).toContain('session_id=');
+    const files = readdirSync(dir);
+    expect(files).toEqual([`${new Date().toISOString().slice(0, 10)}.log`]);
+    expect(await Bun.file(path.join(dir, files[0])).text()).not.toContain('secret');
+
+    writeFileSync(path.join(dir, 'old.log'), '{}\n');
+    const old = (Date.now() - 40 * 86400000) / 1000;
+    utimesSync(path.join(dir, 'old.log'), old, old);
+    const retained = new SessionLogger({ sessionDir: dir, retainDays: 30 });
+    expect(await retained.prune()).toBe(1);
+    expect(readdirSync(dir)).not.toContain('old.log');
+
+    const never = await server({}, { enabled: true, sessionDir: dir, sessionCookie: 'never' });
+    expect((await call(never, 'GET', 'http://localhost/app/nope')).headers.get('set-cookie')).toBeNull();
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  test('isolateInstances keeps a server\'s instances out of the shared registry', async () => {
+    Resource.instances = {};
+    const s = await server();
+    await call(s, 'GET', 'http://localhost/app/unit/1');
+    expect(Object.keys(Resource.instances)).toEqual([]);
+    expect(Object.keys(s.instances)).toEqual(['localhost/app/unit']);
+  });
+});

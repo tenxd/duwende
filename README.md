@@ -45,6 +45,16 @@ bunx duwende init
 bun run index.js
 ```
 
+## Upgrading to 0.3 (beta)
+
+0.3 is backwards compatible: a 0.1 application runs unchanged, and the new behaviour is opt-in through `config.json`.
+See [CHANGELOG.md](CHANGELOG.md) for the options, and check an application with
+`bun scripts/compat-matrix.js <app dir>` before upgrading. The beta is on the `release/0.3` branch:
+
+```bash
+bun add github:tenxd/duwende#release/0.3
+```
+
 ## CLI Commands
 
 The package provides several CLI commands to help you get started and create new components:
