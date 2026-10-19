@@ -9,7 +9,7 @@ import { Resource } from '../resource.js';
 import { Tool } from '../tool.js';
 import { SessionLogger } from '../sessionLogger.js';
 import * as duwende from '../index.js';
-import { basePath, link, origin, routedService } from '../links.js';
+import { basePath, link, linkContext, origin, root, routedService } from '../links.js';
 
 const ROOT = path.resolve(import.meta.dir, '..');
 const FIXTURE = path.join(import.meta.dir, 'compat');
@@ -324,11 +324,66 @@ describe('links, instances per service, unknown hosts (0.3.1)', () => {
     expect(link(dev, 'item/42', { absolute: true })).toBe('http://localhost:1112/shop/item/42');
   });
 
-  test('origin: configured first, then the request, then the first mapped host over https', () => {
+  test('origin: configured first, else https plus a hostname the map lists (the current one if listed)', () => {
     expect(origin(ctx, 'admin')).toBe('https://admin.example.com');
     const unconfigured = { config: { global: { hosts: global.hosts } }, service: 'shop' };
-    expect(origin(unconfigured, 'shop', at('http://example.com:8080/'))).toBe('http://example.com:8080');
+    expect(origin(unconfigured, 'shop', at('http://www.example.com:8080/'))).toBe('https://www.example.com');
     expect(origin(unconfigured, 'admin', at('http://example.com:8080/'))).toBe('https://admin.example.com');
+  });
+
+  test('absolute links never come from a Host header', () => {
+    // A client-chosen Host (no refuseUnknownHosts, "*" routes everything): links still use configured hosts only.
+    const open = { config: { global: { hosts: { 'example.com': 'shop', '*': 'shop' } } }, service: 'shop' };
+    expect(link(open, 'reset?t=1', { absolute: true, ...at('https://evil.test/reset') })).toBe('https://example.com/reset?t=1');
+    // One instance per service keeps the first request's hostname; without a request it must not be used.
+    const stale = { config: { global: { hosts: { 'example.com': 'shop' } } }, service: 'shop', hostname: 'evil.test' };
+    expect(link(stale, 'reset', { absolute: true })).toBe('https://example.com/reset');
+    // No origin and no mapped host: refuse rather than guess, with or without a request.
+    const none = { config: { global: {} }, service: 'shop', hostname: 'evil.test' };
+    expect(() => link(none, 'reset', { absolute: true })).toThrow('set global.origins.shop');
+    expect(() => link(none, 'reset', { absolute: true, ...at('https://evil.test/') })).toThrow('never built from the Host header');
+    expect(() => origin(none)).toThrow();
+    // Relative links need no origin.
+    expect(link(none, 'reset', at('https://evil.test/'))).toBe('/shop/reset');
+  });
+
+  test('root: a base without a trailing slash, relative or absolute', () => {
+    expect(root(ctx, 'shop', at('https://example.com/'))).toBe('');
+    expect(root(ctx, 'shop', { absolute: true })).toBe('https://example.com');
+    const dev = { config: { global: { origins: { shop: 'http://localhost:1112/' } } }, service: 'shop' };
+    expect(root(dev, 'shop', { absolute: true })).toBe('http://localhost:1112/shop');
+    expect(root(dev, 'shop', at('http://localhost:1112/shop/x'))).toBe('/shop');
+    expect(link(ctx, '', { absolute: true })).toBe('https://example.com/');
+  });
+
+  test('linkContext: plain JSON roots for browser code; untrusted services left out', () => {
+    const page = linkContext(ctx, at('https://www.example.com/'));
+    expect(page).toEqual({ service: 'shop', roots: { shop: '', admin: 'https://admin.example.com' } });
+    expect(JSON.parse(JSON.stringify(page))).toEqual(page);
+    const partial = { config: { global: { hosts: { 'example.com': 'shop' } } }, service: 'blog' };
+    expect(linkContext(partial, { ...at('https://example.com/'), services: ['shop', 'blog', 'admin'] }).roots).toEqual({ shop: '', blog: '/blog', admin: '/admin' });
+  });
+
+  test('a mapped service without an origins entry is reported at start; configured ones are not', async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'duwende-origins-'));
+    writeFileSync(path.join(dir, 'config.json'), JSON.stringify({
+      global: { hosts: { 'a.test': 'app', 'b.test': 'admin' }, origins: { admin: 'https://b.test' } }, logging: { enabled: false },
+    }));
+    const warnings = [];
+    const warn = console.warn;
+    const before = process.cwd();
+    console.warn = (message) => warnings.push(String(message));
+    try {
+      process.chdir(dir);
+      await new Server().loadConfig();
+    } finally {
+      process.chdir(before);
+      console.warn = warn;
+      rmSync(dir, { recursive: true, force: true });
+    }
+    const line = warnings.find((message) => message.includes('without global.origins'));
+    expect(line).toContain('"app"');
+    expect(line).not.toContain('"admin"');
   });
 
   test('a resource works as the context', async () => {

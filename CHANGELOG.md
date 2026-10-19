@@ -1,22 +1,30 @@
 # Changelog
 
-## 0.3.1 (beta, branch `release/0.3.1`; 0.3.1-beta.0)
+## 0.3.1 (beta, branch `release/0.3.1`; 0.3.1-beta.1)
 
 Everything new is opt-in; an application on 0.3.0 runs unchanged.
 
-- **Link helpers for the hosts map.** `import { basePath, link, origin, routedService } from 'duwende'`. Plain
-  functions, not Resource methods, so they cannot collide with an application's method names. Pass a resource (or
-  `{ config, hostname, service }`) as the context, and the request whenever there is one: the current host is the
-  request's host.
+- **Link helpers for the hosts map.** `import { basePath, link, root, origin, linkContext, routedService } from
+  'duwende'`. Plain functions, not Resource methods, so they cannot collide with an application's method names. Pass
+  a resource (or `{ config, hostname, service }`) as the context, and the request whenever there is one: the current
+  host is then the request's host.
   - `basePath(context, service?, { request })`: `''` on a host the map routes to the service, else `'/service'`.
   - `link(context, path, { service, absolute, request })`: a path on the current host, or an absolute URL when the
     service is served on another host or `absolute` is true; an absolute URL carries the prefix its own host needs.
     On a host the map doesn't list, a link to a service the map serves elsewhere points to that host.
-  - `origin(context, service?, { request })`: where a service is served. Order: `global.origins[service]`, the
-    request's origin when the service is reached on the current host, the first hostname the map routes to the
-    service (over https), the current host.
-  - New option `global.origins: { "<service>": "https://host[:port]" }`. Set it when links leave a request (emails,
-    sitemaps, invitations), when several hostnames serve one service, or in development (`http://localhost:1112`).
+  - `root(context, service?, { absolute, request })`: a service's root without a trailing slash, to append `/path` to.
+  - `origin(context, service?, { request })`: the trusted origin a service is served on.
+  - `linkContext(context, { request, services })`: `{ service, roots }` as plain JSON for a page to embed, so browser
+    code builds the same links as `` `${roots[service]}/${path}` ``. A service on another host without a trusted origin
+    is left out.
+  - New option `global.origins: { "<service>": "https://host[:port]" }`.
+- **Absolute links never come from a Host header.** The Host header is chosen by the client, so a link built from it
+  can send a password-reset or invitation email to the attacker's domain. Absolute URLs come only from configuration:
+  `global.origins[service]`, else `https://` plus a hostname the hosts map lists for that service (the current host
+  when it is one of them, otherwise the first). With neither, absolute links and `origin()` throw an error asking for
+  `global.origins`; relative links always work. At start, the server warns about every service the hosts map names
+  without an `origins` entry. Set `origins` for every service whose links leave a request (emails, sitemaps,
+  invitations), when several hostnames serve one service, and in development (`http://localhost:1112`).
 - **`global.instanceKey: "service"`**: one resource instance per service and name for every host, so a made-up Host
   header creates nothing. The instance keeps the hostname it was first created for: read the host from the request.
   Default `"host"` (0.x behaviour).

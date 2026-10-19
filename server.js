@@ -4,6 +4,7 @@ import { readdir, readFile } from 'fs/promises';
 import { existsSync, statSync } from 'fs';
 import path from 'path';
 import { SessionLogger } from './sessionLogger.js';
+import { servicesWithoutOrigins } from './links.js';
 
 /**
  * DUWENDE server.
@@ -72,6 +73,10 @@ export class Server {
     Resource.debug = this.config.logging?.level === 'debug';
     Tool.validation = ['warn', 'strict', 'off'].includes(global.toolValidation) ? global.toolValidation : 'warn';
     this.instances = global.isolateInstances === true ? {} : null;
+    const unconfigured = servicesWithoutOrigins(global);
+    if (unconfigured.length) {
+      console.warn(`[duwende] hosts maps ${unconfigured.map((s) => `"${s}"`).join(', ')} without global.origins: absolute links use the first mapped hostname over https; set global.origins to choose (and for http or a port)`);
+    }
     if (!this.config.logging) {
       console.warn('[duwende] request logging is on because config.json has no "logging" block; set logging.enabled explicitly (the default becomes off in 1.0)');
     }
