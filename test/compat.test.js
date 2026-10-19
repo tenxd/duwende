@@ -4,7 +4,7 @@ import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
 import { mkdirSync, mkdtempSync, readdirSync, rmSync, utimesSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import path from 'path';
-import { Server } from '../server.js';
+import { Server, checkBun, compareVersions, MIN_BUN } from '../server.js';
 import { Resource } from '../resource.js';
 import { Tool } from '../tool.js';
 import { SessionLogger } from '../sessionLogger.js';
@@ -53,6 +53,25 @@ const quietly = async (fn) => {
   console.error = (...args) => errors.push(args.join(' '));
   try { return { result: await fn(), errors }; } finally { console.error = original; }
 };
+
+describe('the Bun requirement', () => {
+  test('older Bun is refused with the reason; 1.4.3 and later are accepted', () => {
+    expect(MIN_BUN).toBe('1.4.3');
+    expect(() => checkBun('1.3.14')).toThrow('DUWENDE needs Bun 1.4.3 or later (this is Bun 1.3.14)');
+    expect(() => checkBun('1.2.21')).toThrow('SQL bug');
+    expect(() => checkBun('1.4.3')).not.toThrow();
+    expect(() => checkBun('1.10.0')).not.toThrow();
+    expect(() => checkBun('2.0.0')).not.toThrow();
+    expect(() => checkBun()).not.toThrow(); // the Bun running this suite
+  });
+
+  test('versions compare numerically; pre-release suffixes are ignored', () => {
+    expect(compareVersions('1.10.0', '1.4.3')).toBe(1);
+    expect(compareVersions('1.4.3', '1.4.3')).toBe(0);
+    expect(compareVersions('1.4.2', '1.4.3')).toBe(-1);
+    expect(compareVersions('1.4.3-canary.1', '1.4.3')).toBe(0);
+  });
+});
 
 describe('0.1 behaviour by default', () => {
   test('an application method named dispatch, this.log and this.logging still work', async () => {

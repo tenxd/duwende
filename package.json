@@ -1,6 +1,6 @@
 {
   "name": "duwende",
-  "version": "0.3.0-beta.2",
+  "version": "0.3.0-beta.3",
   "description": "A flexible server framework with dynamic resource loading",
   "main": "index.js",
   "module": "index.js",
@@ -36,7 +36,7 @@
   },
   "homepage": "https://github.com/tenxd/duwende#readme",
   "engines": {
-    "bun": ">=1.2.0"
+    "bun": ">=1.4.3"
   },
   "devDependencies": {}
 }

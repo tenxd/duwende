@@ -1,6 +1,11 @@
 # Changelog
 
-## 0.3.0 (beta, branch `release/0.3`; 0.3.0-beta.2)
+## 0.3.0 (beta, branch `release/0.3`; 0.3.0-beta.3)
+
+**Requires Bun 1.4.3 or later.** Bun 1.3.14 and earlier have a SQL bug, so the server refuses to start on them, with a
+message saying so (the check runs in `loadConfig()`, which every way of starting a server goes through, including
+applications that call `Bun.serve` themselves). Upgrade with `bun upgrade`. This is the one thing an upgrade from 0.1
+may require; `engines.bun` states it too.
 
 An application written for 0.1 runs unchanged: every 0.1 behaviour is still the default. Improvements are either
 invisible to applications or switched on in `config.json`. Defaults that will change in 1.0 print a warning at start.

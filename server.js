@@ -18,6 +18,27 @@ import { SessionLogger } from './sessionLogger.js';
  *   toolValidation: 'warn' (default) | 'strict' | 'off' — see Tool
  * and in `logging` the options described in SessionLogger. See CHANGELOG.md.
  */
+// The oldest Bun this release runs on. Earlier versions have a SQL bug that 0.3 must not run with.
+export const MIN_BUN = '1.4.3';
+
+/** Compare dotted versions numerically: -1, 0 or 1. Pre-release suffixes are ignored. */
+export const compareVersions = (a, b) => {
+  const parts = (v) => String(v).split('-')[0].split('.').map((n) => Number(n) || 0);
+  const [x, y] = [parts(a), parts(b)];
+  const length = Math.max(x.length, y.length);
+  for (let i = 0; i < length; i += 1) {
+    if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) < (y[i] || 0) ? -1 : 1;
+  }
+  return 0;
+};
+
+/** Throws when the running Bun is older than MIN_BUN. */
+export const checkBun = (version = Bun.version) => {
+  if (compareVersions(version, MIN_BUN) < 0) {
+    throw new Error(`DUWENDE needs Bun ${MIN_BUN} or later (this is Bun ${version}): earlier versions have a SQL bug. Upgrade with \`bun upgrade\`.`);
+  }
+};
+
 export class Server {
   constructor() {
     this.config = {};
@@ -27,6 +48,8 @@ export class Server {
   }
 
   async loadConfig() {
+    // Every way of starting a server loads its config first, including applications that call Bun.serve themselves.
+    checkBun();
     try {
       const configFile = await readFile('config.json', 'utf8');
       const parsed = JSON.parse(configFile);
