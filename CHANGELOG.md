@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+- **`duwende resource` makes resources that load.** The generated file exported the name in lower case
+  (`duwende resource UserProfile api` exported `userprofile`), while the server loads the export named exactly like
+  the file, so a resource whose name had capitals never loaded and answered 404. The export is now the name as given,
+  the class name never clashes with it (`user_profile` → `UserProfile`, `UserProfile` → `UserProfileResource`), names
+  that cannot be a JavaScript export (`user-profile`) are refused with a suggestion, and non-snake_case names get a
+  note. Resources made with lower-case names are unaffected.
+- `package.json`: `bin` uses npm's normalised path (`cli.js`); npm applied this itself when publishing 0.3.0.
+
 ## 0.3.0 (2026-10-20)
 
 **Requires Bun 1.4.3 or later.** On Bun 1.3.14, under concurrent load (about 20 requests in flight), Bun's built-in

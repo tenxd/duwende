@@ -122,8 +122,30 @@ async function listTools() {
   }
 }
 
+// The server loads a resource by importing its file and reading the export named exactly like the file, so the
+// export must be the name as given. snake_case names (user_profile) are the convention.
+const IDENTIFIER = /^[A-Za-z_$][A-Za-z0-9_$]*$/;
+const CONVENTIONAL = /^[a-z][a-z0-9_]*$/;
+
+/** user_profile → UserProfile; a class name never equal to the export name. */
+function resourceClassName(name) {
+  const pascal = name.split('_').filter(Boolean).map(capitalize).join('') || capitalize(name);
+  return pascal === name ? `${pascal}Resource` : pascal;
+}
+
+/** null when the name can be a resource, else why not. Warns about names that work but break the convention. */
+function checkResourceName(name) {
+  if (!IDENTIFIER.test(name)) {
+    return `"${name}" cannot be a resource name: the file must export a JavaScript identifier of the same name (letters, digits, _ and $; not starting with a digit). Use snake_case, e.g. ${name.replace(/[^A-Za-z0-9_$]+/g, '_').replace(/^(\d)/, '_$1').toLowerCase()}`;
+  }
+  if (!CONVENTIONAL.test(name)) {
+    console.warn(`Note: "${name}" works, but resource names are conventionally snake_case (${name.replace(/([a-z0-9])([A-Z])/g, '$1_$2').toLowerCase()}); the URL is case-sensitive: /<service>/${name}`);
+  }
+  return null;
+}
+
 function getResourceTemplate(name) {
-  const className = capitalize(name);
+  const className = resourceClassName(name);
   return `import { Resource } from 'duwende';
 
 export class ${className} extends Resource {
@@ -144,7 +166,7 @@ export class ${className} extends Resource {
   }
 }
 
-export const ${name.toLowerCase()} = ${className};`;
+export const ${name} = ${className};`;
 }
 
 async function getResourcePath(hostname, service, name) {
@@ -214,6 +236,11 @@ duwende
 }
 
 async function createResource(name) {
+  const problem = checkResourceName(name);
+  if (problem) {
+    console.error(problem);
+    process.exit(1);
+  }
   const service = process.argv[4];
   const hostname = process.argv[5] || 'localhost';
   const resourcePath = await getResourcePath(hostname, service, name);
