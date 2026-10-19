@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.3.1 (beta, branch `release/0.3.1`; 0.3.1-beta.1)
+## 0.3.1 (2026-10-20)
 
 Everything new is opt-in; an application on 0.3.0 runs unchanged.
 
@@ -123,4 +123,4 @@ Each will have a flag that restores the 0.x behaviour.
 with the DUWENDE it has installed and again with this checkout, then lists any test that passes before and fails
 after. The original application is never touched. `--baseline <dir>` installs a given DUWENDE package for the
 baseline run, which is needed when the application's `node_modules/duwende` links to a working checkout. To try the
-release in an application: `bun add duwende@0.3.0`.
+release in an application: `bun add duwende@0.3.1`.

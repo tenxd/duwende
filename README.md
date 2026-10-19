@@ -52,7 +52,7 @@ new behaviour is opt-in through `config.json`. See [CHANGELOG.md](CHANGELOG.md) 
 application with `bun scripts/compat-matrix.js <app dir>` from a checkout of this repository before upgrading:
 
 ```bash
-bun add duwende@0.3.0
+bun add duwende@0.3.1
 ```
 
 ## CLI Commands
