@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
 // Runs applications' own test suites against this checkout of DUWENDE, to find breaking changes before a release.
 //
-//   bun scripts/compat-matrix.js <app dir> [<app dir> …] [--baseline <duwende package dir>] [--keep] [--command "bun run test"]
+//   bun scripts/compat-matrix.js <app dir> [<app dir> …] [--baseline <duwende package dir>] [--system-bun] [--keep] [--command "bun run test"]
 //
 // For each application: copies it to a temporary directory (the original is never touched), runs its tests with the
 // DUWENDE version it has installed (the baseline), replaces node_modules/duwende with this checkout's package files,
@@ -16,6 +16,10 @@
 // node_modules/duwende links to a working checkout, because then "installed" is whatever that checkout has checked
 // out; the script warns when it sees links there. An application whose output shows no recognisable test results
 // (the script reads `bun test` output) is reported as unverified, not as passing.
+//
+// --system-bun removes any npm-installed copy of Bun from the temporary copy (node_modules/bun, @oven, .bin/bun and
+// .bin/bunx), so both runs use the Bun on this machine; otherwise `bun run` scripts prefer the copy in node_modules.
+// The Bun version each application runs on is printed either way.
 import { cpSync, existsSync, lstatSync, mkdtempSync, readdirSync, readFileSync, rmSync } from 'fs';
 import { tmpdir } from 'os';
 import path from 'path';
@@ -23,6 +27,7 @@ import path from 'path';
 const ROOT = path.resolve(import.meta.dir, '..');
 const args = process.argv.slice(2);
 const keep = args.includes('--keep');
+const systemBun = args.includes('--system-bun');
 const valueOf = (flag) => (args.indexOf(flag) >= 0 ? args[args.indexOf(flag) + 1] : null);
 const override = valueOf('--command');
 const baselinePackage = valueOf('--baseline') ? path.resolve(valueOf('--baseline')) : null;
@@ -47,6 +52,14 @@ async function runTests(dir) {
   const count = (word) => Number(output.match(new RegExp(`^\\s*(\\d+) ${word}$`, 'm'))?.[1] ?? 0);
   const failed = new Set([...output.matchAll(/^\(fail\) (.+?)(?: \[[\d.]+m?s\])?$/gm)].map((match) => match[1].trim()));
   return { pass: count('pass'), fail: count('fail'), failed, output, command, exitCode: child.exitCode };
+}
+
+/** The Bun a `bun run` script in dir would use (node_modules/.bin first, as bun run does). */
+async function bunVersion(dir) {
+  const child = Bun.spawn(['sh', '-c', 'PATH="$PWD/node_modules/.bin:$PATH" bun --version'], { cwd: dir, stdout: 'pipe', stderr: 'pipe' });
+  const text = (await new Response(child.stdout).text()).trim();
+  await child.exited;
+  return text || 'unknown';
 }
 
 /** Replace node_modules/duwende with the package files from `from` (removes links in the copy, never their targets). */
@@ -79,6 +92,8 @@ for (const app of apps) {
   console.log(`\n▶ ${source}`);
   try {
     cpSync(source, work, { recursive: true, filter: (file) => !file.split(path.sep).includes('.git') });
+    if (systemBun) ['bun', '@oven', '.bin/bun', '.bin/bunx'].forEach((entry) => rmSync(path.join(work, 'node_modules', entry), { recursive: true, force: true }));
+    console.log(`  bun ${await bunVersion(work)}${systemBun ? ' (system)' : ''}`);
     if (baselinePackage) install(work, baselinePackage);
     else if (linked(work)) console.log('  ! node_modules/duwende links to a working checkout, so the baseline is whatever it has checked out; pass --baseline');
     const baselineVersion = installedVersion(work);

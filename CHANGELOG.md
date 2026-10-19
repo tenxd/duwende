@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.3.0 (beta, branch `release/0.3`; 0.3.0-beta.1)
+## 0.3.0 (beta, branch `release/0.3`; 0.3.0-beta.2)
 
 An application written for 0.1 runs unchanged: every 0.1 behaviour is still the default. Improvements are either
 invisible to applications or switched on in `config.json`. Defaults that will change in 1.0 print a warning at start.
@@ -26,6 +26,12 @@ invisible to applications or switched on in `config.json`. Defaults that will ch
   application method with the same name (for example `dispatch`) no longer replaces them.
 - **Instance messages** ("Instance created", "Instance reused") are printed only at `logging.level: "debug"`.
 - **Session cookie.** A `session_id` cookie is no longer set to `null` when logging is off.
+- **No more npm copy of Bun.** 0.1 declared `bun` as a peer dependency, and Bun installs peer dependencies
+  automatically, so every application got an npm copy of Bun in `node_modules` and `bun run` scripts used that copy
+  (whatever version was newest at install time) instead of the Bun on the machine. The peer dependency is gone;
+  `engines.bun` (`>=1.2.0`) still states the requirement. After upgrading, remove the stray copy with
+  `rm -rf node_modules/bun node_modules/@oven node_modules/.bin/bun node_modules/.bin/bunx` and run `bun install`,
+  then check that `bun run test` reports the machine's Bun version.
 - **Tools load independently.** A tool that fails to import is reported and skipped; the others still load.
 
 ### New options
