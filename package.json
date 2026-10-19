@@ -1,6 +1,6 @@
 {
   "name": "duwende",
-  "version": "0.3.0",
+  "version": "0.3.1-beta.0",
   "description": "A flexible server framework with dynamic resource loading",
   "main": "index.js",
   "module": "index.js",
@@ -13,6 +13,7 @@
     "resource.js",
     "server.js",
     "tool.js",
+    "links.js",
     "cli.js",
     "sessionLogger.js",
     "docs/**/*",

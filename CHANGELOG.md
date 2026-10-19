@@ -1,7 +1,28 @@
 # Changelog
 
-## Unreleased
+## 0.3.1 (beta, branch `release/0.3.1`; 0.3.1-beta.0)
 
+Everything new is opt-in; an application on 0.3.0 runs unchanged.
+
+- **Link helpers for the hosts map.** `import { basePath, link, origin, routedService } from 'duwende'`. Plain
+  functions, not Resource methods, so they cannot collide with an application's method names. Pass a resource (or
+  `{ config, hostname, service }`) as the context, and the request whenever there is one: the current host is the
+  request's host.
+  - `basePath(context, service?, { request })`: `''` on a host the map routes to the service, else `'/service'`.
+  - `link(context, path, { service, absolute, request })`: a path on the current host, or an absolute URL when the
+    service is served on another host or `absolute` is true; an absolute URL carries the prefix its own host needs.
+    On a host the map doesn't list, a link to a service the map serves elsewhere points to that host.
+  - `origin(context, service?, { request })`: where a service is served. Order: `global.origins[service]`, the
+    request's origin when the service is reached on the current host, the first hostname the map routes to the
+    service (over https), the current host.
+  - New option `global.origins: { "<service>": "https://host[:port]" }`. Set it when links leave a request (emails,
+    sitemaps, invitations), when several hostnames serve one service, or in development (`http://localhost:1112`).
+- **`global.instanceKey: "service"`**: one resource instance per service and name for every host, so a made-up Host
+  header creates nothing. The instance keeps the hostname it was first created for: read the host from the request.
+  Default `"host"` (0.x behaviour).
+- **`global.refuseUnknownHosts: true`**: with a hosts map and no `"*"`, a host the map doesn't list gets 421
+  (`{ "error": "unknown_host" }` for JSON requests, `Unknown host` for pages) before any routing or static file.
+  Without a map, or with `"*"`, nothing is refused. A proxy rule becomes a second line of defence, not the only one.
 - **`duwende resource` makes resources that load.** The generated file exported the name in lower case
   (`duwende resource UserProfile api` exported `userprofile`), while the server loads the export named exactly like
   the file, so a resource whose name had capitals never loaded and answered 404. The export is now the name as given,

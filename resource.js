@@ -18,6 +18,8 @@ const SEGMENT = /^[A-Za-z0-9_$-]+$/;
  * The framework's own 404 and 405 answer JSON requests (handle*) with { error: 'not_found' | 'method_not_allowed' } and
  * page requests (render*) with 0.1's text bodies.
  *   maxInstances:   cached instances kept (default 1000); the least recently used are dropped beyond it
+ *   instanceKey:    'host' (default, as 0.1: an instance per host, service and name) | 'service' (per service and name;
+ *                   the instance keeps the hostname it was first created for)
  * Internal methods are private (#name), so they can never collide with a method an application defines.
  */
 export class Resource {
@@ -76,7 +78,8 @@ export class Resource {
   }
 
   static async register(hostname, service, name, config, registry = Resource.instances) {
-    const key = `${hostname}/${service}/${name}`;
+    // instanceKey 'service': one instance per service and resource for every host (made-up Host headers create none).
+    const key = config.global?.instanceKey === 'service' ? `${service}/${name}` : `${hostname}/${service}/${name}`;
     const timestamp = Date.now();
     if (registry[key]) {
       registry[key].lastUsed = timestamp;

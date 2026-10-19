@@ -15,6 +15,9 @@ import { SessionLogger } from './sessionLogger.js';
  *   static: { prefix: "/assets", dir: "public" } — files served by the server itself (development; use the proxy in production)
  *   decodePath: true — URL-decode path segments before they reach resources (0.1 passes them raw)
  *   isolateInstances: true — this server keeps its own resource instances instead of the shared Resource.instances
+ *   instanceKey: 'service' — one resource instance per service and name, whatever the Host header (default 'host')
+ *   refuseUnknownHosts: true — with a hosts map and no "*", a host it doesn't list gets 421 before any routing
+ *   origins: { "<service>": "https://host" } — where each service is served, for absolute links (see links.js)
  *   toolValidation: 'warn' (default) | 'strict' | 'off' — see Tool
  * and in `logging` the options described in SessionLogger. See CHANGELOG.md.
  */
@@ -165,9 +168,23 @@ export class Server {
     return response;
   }
 
+  /** refuseUnknownHosts: a host the hosts map doesn't list (and no "*") is answered 421 before anything else runs. */
+  unknownHost(request, url) {
+    const global = this.config.global || {};
+    const hosts = global.hosts || {};
+    if (global.refuseUnknownHosts !== true || !Object.keys(hosts).length) return null;
+    if (Object.prototype.hasOwnProperty.call(hosts, url.hostname) || Object.prototype.hasOwnProperty.call(hosts, '*')) return null;
+    const json = (request.headers.get('accept') || '').includes('json') || url.pathname.split('/').some((part) => part.endsWith('.json'));
+    return json
+      ? new Response(JSON.stringify({ error: 'unknown_host' }), { status: 421, headers: { 'Content-Type': 'application/json' } })
+      : new Response('Unknown host', { status: 421 });
+  }
+
   async handleRequest(request) {
     const startTime = Date.now();
     const url = new URL(request.url);
+    const refused = this.unknownHost(request, url);
+    if (refused) return refused;
     const file = this.staticResponse(url);
     if (file) return file;
 

@@ -8,6 +8,8 @@ import { Server, checkBun, compareVersions, MIN_BUN } from '../server.js';
 import { Resource } from '../resource.js';
 import { Tool } from '../tool.js';
 import { SessionLogger } from '../sessionLogger.js';
+import * as duwende from '../index.js';
+import { basePath, link, origin, routedService } from '../links.js';
 
 const ROOT = path.resolve(import.meta.dir, '..');
 const FIXTURE = path.join(import.meta.dir, 'compat');
@@ -290,5 +292,76 @@ describe('opt-in options', () => {
     await call(s, 'GET', 'http://localhost/app/unit/1');
     expect(Object.keys(Resource.instances)).toEqual([]);
     expect(Object.keys(s.instances)).toEqual(['localhost/app/unit']);
+  });
+});
+
+describe('links, instances per service, unknown hosts (0.3.1)', () => {
+  const global = {
+    hosts: { 'example.com': 'shop', 'www.example.com': 'shop', 'admin.example.com': 'admin' },
+    origins: { shop: 'https://example.com', admin: 'https://admin.example.com' },
+  };
+  const ctx = { config: { global }, service: 'shop', hostname: 'stale.example.net' };
+  const at = (url) => ({ request: new Request(url) });
+
+  test('the helpers are exported from duwende', () => {
+    expect([duwende.basePath, duwende.link, duwende.origin, duwende.routedService].every((fn) => typeof fn === 'function')).toBe(true);
+  });
+
+  test('basePath: no prefix on a host routed to the service, the prefix elsewhere; the request decides the host', () => {
+    expect(basePath(ctx, 'shop', at('https://www.example.com/x'))).toBe('');
+    expect(basePath(ctx, 'admin', at('https://www.example.com/x'))).toBe('/admin');
+    expect(basePath({ config: { global: {} }, service: 'shop' }, undefined, at('http://localhost:1112/shop'))).toBe('/shop');
+    expect(routedService(global, 'nope.example.com')).toBeUndefined();
+    expect(routedService({ hosts: { '*': 'shop' } }, 'any.test')).toBe('shop');
+  });
+
+  test('link: relative on the current host, absolute on another, origins first, prefix for the target host', () => {
+    expect(link(ctx, '/item/42', at('https://www.example.com/'))).toBe('/item/42');
+    expect(link(ctx, 'orders?page=2', { service: 'admin', ...at('https://example.com/') })).toBe('https://admin.example.com/orders?page=2');
+    expect(link(ctx, 'item/42', { absolute: true })).toBe('https://example.com/item/42');
+    const dev = { config: { global: { origins: { shop: 'http://localhost:1112' } } }, service: 'shop' };
+    expect(link(dev, 'item/42', at('http://localhost:1112/shop/x'))).toBe('/shop/item/42');
+    expect(link(dev, 'item/42', { absolute: true })).toBe('http://localhost:1112/shop/item/42');
+  });
+
+  test('origin: configured first, then the request, then the first mapped host over https', () => {
+    expect(origin(ctx, 'admin')).toBe('https://admin.example.com');
+    const unconfigured = { config: { global: { hosts: global.hosts } }, service: 'shop' };
+    expect(origin(unconfigured, 'shop', at('http://example.com:8080/'))).toBe('http://example.com:8080');
+    expect(origin(unconfigured, 'admin', at('http://example.com:8080/'))).toBe('https://admin.example.com');
+  });
+
+  test('a resource works as the context', async () => {
+    const s = await server({ hosts: { 'shop.test': 'app' } });
+    await call(s, 'GET', 'http://shop.test/unit/1');
+    const instance = Object.values(s.instances)[0].instance;
+    expect(link(instance, 'unit/2')).toBe('/unit/2');
+    // On a host the map doesn't list, a link to a service the map serves elsewhere goes to that host.
+    expect(link(instance, 'unit/2', at('http://other.test/app/unit/1'))).toBe('https://shop.test/unit/2');
+  });
+
+  test('instanceKey service: one instance for every host; made-up hosts create none', async () => {
+    const s = await server({ instanceKey: 'service' });
+    for (const host of ['a.test', 'b.test', 'c.test']) await call(s, 'GET', `http://${host}/app/unit/1`);
+    expect(Object.keys(s.instances)).toEqual(['app/unit']);
+    const byHost = await server();
+    for (const host of ['a.test', 'b.test']) await call(byHost, 'GET', `http://${host}/app/unit/1`);
+    expect(Object.keys(byHost.instances).length).toBe(2);
+  });
+
+  test('refuseUnknownHosts: 421 for hosts the map does not list, JSON or text; off by default; "*" accepts all', async () => {
+    const s = await server({ hosts: { 'shop.test': 'app' }, refuseUnknownHosts: true });
+    expect((await call(s, 'GET', 'http://shop.test/unit/1')).status).toBe(200);
+    const json = await call(s, 'GET', 'http://evil.test/app/unit/1');
+    expect([json.status, json.body]).toEqual([421, { error: 'unknown_host' }]);
+    const page = await call(s, 'GET', 'http://evil.test/app/unit/1', { json: false });
+    expect([page.status, page.text]).toEqual([421, 'Unknown host']);
+    expect(Object.keys(s.instances)).toEqual(['shop.test/app/unit']);
+    const off = await server({ hosts: { 'shop.test': 'app' } });
+    expect((await call(off, 'GET', 'http://evil.test/app/unit/1')).status).toBe(200);
+    const wildcard = await server({ hosts: { '*': 'app' }, refuseUnknownHosts: true });
+    expect((await call(wildcard, 'GET', 'http://any.test/unit/1')).status).toBe(200);
+    const noMap = await server({ refuseUnknownHosts: true });
+    expect((await call(noMap, 'GET', 'http://any.test/app/unit/1')).status).toBe(200);
   });
 });
