@@ -58,7 +58,7 @@ describe('the Bun requirement', () => {
   test('older Bun is refused with the reason; 1.4.3 and later are accepted', () => {
     expect(MIN_BUN).toBe('1.4.3');
     expect(() => checkBun('1.3.14')).toThrow('DUWENDE needs Bun 1.4.3 or later (this is Bun 1.3.14)');
-    expect(() => checkBun('1.2.21')).toThrow('SQL bug');
+    expect(() => checkBun('1.2.21')).toThrow('PostgreSQL client');
     expect(() => checkBun('1.4.3')).not.toThrow();
     expect(() => checkBun('1.10.0')).not.toThrow();
     expect(() => checkBun('2.0.0')).not.toThrow();

@@ -2,8 +2,11 @@
 
 ## 0.3.0 (beta, branch `release/0.3`; 0.3.0-beta.3)
 
-**Requires Bun 1.4.3 or later.** Bun 1.3.14 and earlier have a SQL bug, so the server refuses to start on them, with a
-message saying so (the check runs in `loadConfig()`, which every way of starting a server goes through, including
+**Requires Bun 1.4.3 or later.** On Bun 1.3.14, under concurrent load (about 20 requests in flight), Bun's built-in
+PostgreSQL client (`Bun.SQL`) handed queries other queries' results: text values were parsed as JSON, rows came back
+with values that do not exist, plain reads failed with "current transaction is aborted", and connections stalled.
+Turning off prepared statements did not help; the same load on Bun 1.4.3 is clean. Older versions were not tested and
+are refused too. The server refuses to start on Bun older than 1.4.3, with a message saying why (the check runs in `loadConfig()`, which every way of starting a server goes through, including
 applications that call `Bun.serve` themselves). Upgrade with `bun upgrade`. This is the one thing an upgrade from 0.1
 may require; `engines.bun` states it too.
 

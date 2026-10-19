@@ -4,7 +4,7 @@ An ultra-lightweight, flexible and extensible web application nano-framework bui
 
 ## Prerequisites
 
-- [Bun](https://bun.sh) >= 1.4.3 (DUWENDE 0.3 refuses to start on older versions, which have a SQL bug)
+- [Bun](https://bun.sh) >= 1.4.3 (DUWENDE 0.3 refuses to start on older versions: under concurrent load, Bun 1.3.14's built-in PostgreSQL client returned one query's results to another)
 
 ## Installation
 

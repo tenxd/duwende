@@ -18,7 +18,9 @@ import { SessionLogger } from './sessionLogger.js';
  *   toolValidation: 'warn' (default) | 'strict' | 'off' — see Tool
  * and in `logging` the options described in SessionLogger. See CHANGELOG.md.
  */
-// The oldest Bun this release runs on. Earlier versions have a SQL bug that 0.3 must not run with.
+// The oldest Bun this release runs on. On Bun 1.3.14, under concurrent load, Bun's built-in PostgreSQL client (Bun.SQL)
+// handed queries other queries' results: text parsed as JSON, rows with values that do not exist, reads failing with
+// "current transaction is aborted". Turning off prepared statements did not help; Bun 1.4.3 is clean.
 export const MIN_BUN = '1.4.3';
 
 /** Compare dotted versions numerically: -1, 0 or 1. Pre-release suffixes are ignored. */
@@ -35,7 +37,7 @@ export const compareVersions = (a, b) => {
 /** Throws when the running Bun is older than MIN_BUN. */
 export const checkBun = (version = Bun.version) => {
   if (compareVersions(version, MIN_BUN) < 0) {
-    throw new Error(`DUWENDE needs Bun ${MIN_BUN} or later (this is Bun ${version}): earlier versions have a SQL bug. Upgrade with \`bun upgrade\`.`);
+    throw new Error(`DUWENDE needs Bun ${MIN_BUN} or later (this is Bun ${version}): under concurrent load, older Bun's built-in PostgreSQL client can return one query's results to another. Upgrade with \`bun upgrade\`.`);
   }
 };
 
