@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.3.0 (beta, branch `release/0.3`)
+## 0.3.0 (beta, branch `release/0.3`; 0.3.0-beta.1)
 
 An application written for 0.1 runs unchanged: every 0.1 behaviour is still the default. Improvements are either
 invisible to applications or switched on in `config.json`. Defaults that will change in 1.0 print a warning at start.
@@ -10,6 +10,13 @@ invisible to applications or switched on in `config.json`. Defaults that will ch
 - **No stack traces to clients.** A thrown error in a `handle*` or `render*` method answers 500 with
   `{ "error": "server_error" }` and writes the message and stack to the server log. `global.debugErrors: true`
   restores 0.1's body (`error`, `message`, `stack`).
+- **JSON 404 and 405 for JSON requests.** The answers DUWENDE writes itself — an unknown resource, a method a
+  resource does not implement, an unknown HTTP method — are `{ "error": "not_found" }` or
+  `{ "error": "method_not_allowed" }` with `Content-Type: application/json` when the request is a JSON request (a
+  `.json` suffix or an `Accept` header containing `json`). Page requests keep 0.1's text bodies (`Resource not found`,
+  `Not Found`, `Method Not Allowed`), and status codes are unchanged. Responses an application writes itself are
+  untouched. **This changes the body JSON clients receive for these answers:** an outside client that reads them as
+  text should parse JSON instead.
 - **Quiet 404 for unknown paths.** Service and resource segments must contain only letters, digits, `_`, `$` and
   `-`, and the file must exist; anything else (`/favicon.ico`, `..`) answers 404 without logging a stack.
 - **Bounded instance cache.** Resource instances are still cached per host, service and name, but at most

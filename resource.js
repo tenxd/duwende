@@ -15,6 +15,8 @@ const SEGMENT = /^[A-Za-z0-9_$-]+$/;
  *   resourcePaths:  extra path templates searched after resourcePath, first existing file wins
  *   debugErrors:    true answers a thrown error with { error, message, stack } as 0.1 did; otherwise { error: 'server_error' }
  *   strictMethods:  true answers a method the resource does not implement with 405 instead of 404
+ * The framework's own 404 and 405 answer JSON requests (handle*) with { error: 'not_found' | 'method_not_allowed' } and
+ * page requests (render*) with 0.1's text bodies.
  *   maxInstances:   cached instances kept (default 1000); the least recently used are dropped beyond it
  * Internal methods are private (#name), so they can never collide with a method an application defines.
  */
@@ -165,7 +167,7 @@ export class Resource {
     const verb = request.method === 'GET' && !id ? 'List' : request.method.charAt(0) + request.method.slice(1).toLowerCase();
     const known = ['List', 'Get', 'Post', 'Put', 'Patch', 'Delete', 'Options'];
     const method = this[`${prefix}${verb}`];
-    if (!known.includes(verb) || typeof method !== 'function') return this.response(405, 'Method Not Allowed');
+    if (!known.includes(verb) || typeof method !== 'function') return this.#frameworkAnswer(405, prefix === 'handle');
     try {
       return await method.call(this, request, id, path);
     } catch (error) {
@@ -181,22 +183,28 @@ export class Resource {
     return this.#run('handle', request, id, path);
   }
 
-  #notImplemented() {
-    return this.config?.global?.strictMethods === true ? this.response(405, 'Method Not Allowed') : this.response(404, 'Not Found');
+  /** The framework's own 404/405: JSON for JSON requests (handle*), the 0.1 text bodies for pages (render*). */
+  #frameworkAnswer(status, json) {
+    if (json) return this.response(status, { error: status === 405 ? 'method_not_allowed' : 'not_found' });
+    return this.response(status, status === 405 ? 'Method Not Allowed' : 'Not Found');
   }
 
-  async renderList(request) { return this.#notImplemented(); }
-  async renderGet(request, id, path) { return this.#notImplemented(); }
-  async renderPost(request, id, path) { return this.#notImplemented(); }
-  async renderPut(request, id, path) { return this.#notImplemented(); }
-  async renderPatch(request, id, path) { return this.#notImplemented(); }
-  async renderDelete(request, id, path) { return this.#notImplemented(); }
-  async renderOptions(request, id, path) { return this.#notImplemented(); }
-  async handleList(request) { return this.#notImplemented(); }
-  async handleGet(request, id, path) { return this.#notImplemented(); }
-  async handlePost(request, id, path) { return this.#notImplemented(); }
-  async handlePut(request, id, path) { return this.#notImplemented(); }
-  async handlePatch(request, id, path) { return this.#notImplemented(); }
-  async handleDelete(request, id, path) { return this.#notImplemented(); }
-  async handleOptions(request, id, path) { return this.#notImplemented(); }
+  #notImplemented(json) {
+    return this.#frameworkAnswer(this.config?.global?.strictMethods === true ? 405 : 404, json);
+  }
+
+  async renderList(request) { return this.#notImplemented(false); }
+  async renderGet(request, id, path) { return this.#notImplemented(false); }
+  async renderPost(request, id, path) { return this.#notImplemented(false); }
+  async renderPut(request, id, path) { return this.#notImplemented(false); }
+  async renderPatch(request, id, path) { return this.#notImplemented(false); }
+  async renderDelete(request, id, path) { return this.#notImplemented(false); }
+  async renderOptions(request, id, path) { return this.#notImplemented(false); }
+  async handleList(request) { return this.#notImplemented(true); }
+  async handleGet(request, id, path) { return this.#notImplemented(true); }
+  async handlePost(request, id, path) { return this.#notImplemented(true); }
+  async handlePut(request, id, path) { return this.#notImplemented(true); }
+  async handlePatch(request, id, path) { return this.#notImplemented(true); }
+  async handleDelete(request, id, path) { return this.#notImplemented(true); }
+  async handleOptions(request, id, path) { return this.#notImplemented(true); }
 }

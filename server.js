@@ -162,17 +162,22 @@ export class Server {
       this.instances || Resource.instances
     );
 
+    const acceptHeader = request.headers.get("accept");
+    const wantsJson = Boolean((acceptHeader && acceptHeader.includes("json")) || isJsonRequest);
+
     if (!resourceInstance) {
-      const response = new Response("Resource not found", { status: 404 });
+      // JSON requests get a JSON body; pages keep 0.1's text.
+      const response = wantsJson
+        ? new Response(JSON.stringify({ error: "not_found" }), { status: 404, headers: { "Content-Type": "application/json" } })
+        : new Response("Resource not found", { status: 404 });
       response.headers.set("X-Response-Time", `${Date.now() - startTime}ms`);
       const sessionId = await this.logger.logRequest(request, response, { service, resource: resourceName, id });
       return this.withSessionCookie(request, response, sessionId, true);
     }
 
-    const acceptHeader = request.headers.get("accept");
     let response;
 
-    if ((acceptHeader && acceptHeader.includes("json")) || isJsonRequest) {
+    if (wantsJson) {
       response = await resourceInstance.handle(request, id, remainingPath);
     } else {
       response = await resourceInstance.render(request, id, remainingPath);

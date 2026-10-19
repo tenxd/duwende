@@ -66,7 +66,7 @@ describe('0.1 behaviour by default', () => {
     expect((await call(s, 'GET', 'http://localhost/app/legacy/1')).body).toEqual({ ok: true });
   });
 
-  test('a method the resource does not implement answers 404, an unknown HTTP method 405', async () => {
+  test('a method the resource does not implement answers 404, an unknown HTTP method 405 (status codes as 0.1)', async () => {
     const s = await server();
     expect((await call(s, 'GET', 'http://localhost/app/empty/1')).status).toBe(404);
     expect((await call(s, 'PUT', 'http://localhost/app/empty/1')).status).toBe(404);
@@ -89,6 +89,44 @@ describe('0.1 behaviour by default', () => {
     expect(Object.keys(Resource.instances)).toEqual(['localhost/app/unit']);
     expect(Resource.instances['localhost/app/unit'].instance.name).toBe('unit');
     Resource.instances = {};
+  });
+});
+
+describe('the framework\'s own 404 and 405', () => {
+  test('JSON requests get JSON bodies; pages keep the 0.1 text', async () => {
+    const s = await server();
+    const json = await call(s, 'GET', 'http://localhost/app/empty/1');
+    expect([json.status, json.headers.get('content-type'), json.body]).toEqual([404, 'application/json', { error: 'not_found' }]);
+    const suffix = await call(s, 'GET', 'http://localhost/app/empty.json/1', { json: false });
+    expect(suffix.body).toEqual({ error: 'not_found' });
+    const page = await call(s, 'GET', 'http://localhost/app/empty/1', { json: false });
+    expect([page.status, page.text]).toEqual([404, 'Not Found']);
+    const unknownVerb = await call(s, 'HEAD', 'http://localhost/app/empty/1');
+    expect([unknownVerb.status, unknownVerb.headers.get('content-type')]).toEqual([405, 'application/json']);
+    const unknownVerbPage = await call(s, 'HEAD', 'http://localhost/app/empty/1', { json: false });
+    expect(unknownVerbPage.headers.get('content-type')).toStartWith('text/plain');
+  });
+
+  test('with strictMethods the 405 follows the same rule', async () => {
+    const s = await server({ strictMethods: true });
+    expect((await call(s, 'PUT', 'http://localhost/app/empty/1')).body).toEqual({ error: 'method_not_allowed' });
+    const page = await call(s, 'PUT', 'http://localhost/app/empty/1', { json: false });
+    expect([page.status, page.text]).toEqual([405, 'Method Not Allowed']);
+  });
+
+  test('an unknown resource: JSON for JSON requests, the 0.1 text for pages', async () => {
+    const s = await server();
+    const json = await call(s, 'GET', 'http://localhost/app/nope');
+    expect([json.status, json.headers.get('content-type'), json.body]).toEqual([404, 'application/json', { error: 'not_found' }]);
+    expect((await call(s, 'GET', 'http://localhost/app/nope.json', { json: false })).body).toEqual({ error: 'not_found' });
+    const page = await call(s, 'GET', 'http://localhost/app/nope', { json: false });
+    expect([page.status, page.text]).toEqual([404, 'Resource not found']);
+  });
+
+  test('responses an application writes itself are untouched', async () => {
+    const s = await server();
+    const own = await call(s, 'GET', 'http://localhost/app/nothing/1');
+    expect(own.text).toBe('null');
   });
 });
 
