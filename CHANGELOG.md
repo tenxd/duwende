@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.3.2 (2026-10-20)
 
 - **A host listed with `null` in `global.hosts` is "listed, not routed".** Use it for a shared main hostname that
   keeps every service under its prefix while other hostnames are mapped: `{ "example.com": null, "admin.example.com":
@@ -131,4 +131,4 @@ Each will have a flag that restores the 0.x behaviour.
 with the DUWENDE it has installed and again with this checkout, then lists any test that passes before and fails
 after. The original application is never touched. `--baseline <dir>` installs a given DUWENDE package for the
 baseline run, which is needed when the application's `node_modules/duwende` links to a working checkout. To try the
-release in an application: `bun add duwende@0.3.1`.
+release in an application: `bun add duwende@0.3.2`.

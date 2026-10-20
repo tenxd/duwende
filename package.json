@@ -1,6 +1,6 @@
 {
   "name": "duwende",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "description": "A flexible server framework with dynamic resource loading",
   "main": "index.js",
   "module": "index.js",
