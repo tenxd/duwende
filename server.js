@@ -10,8 +10,10 @@ import { servicesWithoutOrigins } from './links.js';
  * DUWENDE server.
  *
  * Compatibility: with a 0.1 config.json the server behaves as 0.1 did. New options, all in `global` unless noted:
- *   hosts: { "<hostname>": "<service>", "*": "<service>" } — on a mapped host the path starts at the resource
- *          (/{resource}/{id}); "*" maps every other host. Unmapped hosts keep /{service}/{resource}/{id}.
+ *   hosts: { "<hostname>": "<service>" | null, "*": "<service>" } — on a mapped host the path starts at the resource
+ *          (/{resource}/{id}); "*" maps every other host. Unmapped hosts keep /{service}/{resource}/{id}. null lists a
+ *          host without routing it: it keeps the service prefix, never falls back to "*", and counts as known for
+ *          refuseUnknownHosts (a shared main hostname beside mapped ones).
  *   toolPaths: [dirs] loaded after tools/ (a name already loaded is not replaced)
  *   static: { prefix: "/assets", dir: "public" } — files served by the server itself (development; use the proxy in production)
  *   decodePath: true — URL-decode path segments before they reach resources (0.1 passes them raw)
@@ -130,7 +132,9 @@ export class Server {
       try { return decodeURIComponent(part); } catch { return part; }
     };
     const hosts = this.config.global?.hosts || {};
-    const hosted = hosts[url.hostname] ?? hosts['*'];
+    // A host listed with null is "listed, not routed": it keeps /{service}/{resource} and never falls back to "*".
+    const listed = Object.prototype.hasOwnProperty.call(hosts, url.hostname);
+    const hosted = listed ? hosts[url.hostname] ?? undefined : hosts['*'];
     const raw = url.pathname.split("/").slice(1);
     const pathParts = hosted === undefined ? raw : [hosted, ...raw];
     const service = segment(pathParts[0] || "");

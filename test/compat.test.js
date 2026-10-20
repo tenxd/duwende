@@ -404,6 +404,23 @@ describe('links, instances per service, unknown hosts (0.3.1)', () => {
     expect(Object.keys(byHost.instances).length).toBe(2);
   });
 
+  test('a host listed with null is known but not routed: it keeps the prefix, even beside "*"', async () => {
+    const hosts = { 'main.test': null, 'shop.test': 'app', '*': 'app' };
+    const s = await server({ hosts, refuseUnknownHosts: true });
+    expect((await call(s, 'GET', 'http://main.test/app/unit/1')).body.id).toBe('1');
+    expect((await call(s, 'GET', 'http://shop.test/unit/2')).body.id).toBe('2');
+    expect((await call(s, 'GET', 'http://other.test/unit/3')).body.id).toBe('3');
+    const strict = await server({ hosts: { 'main.test': null, 'shop.test': 'app' }, refuseUnknownHosts: true });
+    expect((await call(strict, 'GET', 'http://main.test/app/unit/1')).status).toBe(200);
+    expect((await call(strict, 'GET', 'http://evil.test/app/unit/1')).status).toBe(421);
+    const context = { config: { global: { hosts: { 'main.test': null, 'shop.test': 'app' } } }, service: 'app' };
+    expect(routedService(context.config.global, 'main.test')).toBeNull();
+    expect(link(context, 'unit/1', at('http://main.test/'))).toBe('https://shop.test/unit/1');
+    expect(linkContext(context, at('http://main.test/')).roots).toEqual({ app: 'https://shop.test' });
+    const { servicesWithoutOrigins } = await import('../links.js');
+    expect(servicesWithoutOrigins({ hosts: { 'main.test': null, 'shop.test': 'app' } })).toEqual(['app']);
+  });
+
   test('refuseUnknownHosts: 421 for hosts the map does not list, JSON or text; off by default; "*" accepts all', async () => {
     const s = await server({ hosts: { 'shop.test': 'app' }, refuseUnknownHosts: true });
     expect((await call(s, 'GET', 'http://shop.test/unit/1')).status).toBe(200);

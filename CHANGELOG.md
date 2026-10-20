@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- **A host listed with `null` in `global.hosts` is "listed, not routed".** Use it for a shared main hostname that
+  keeps every service under its prefix while other hostnames are mapped: `{ "example.com": null, "admin.example.com":
+  "admin" }`. Such a host keeps `/{service}/{resource}`, counts as known for `refuseUnknownHosts`, and now never falls
+  back to `"*"` (0.3.1 routed it as the wildcard's service when the map also had `"*"`). The startup warning about
+  services without `global.origins` no longer counts it as a service.
+
 ## 0.3.1 (2026-10-20)
 
 Everything new is opt-in; an application on 0.3.0 runs unchanged.

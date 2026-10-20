@@ -16,6 +16,7 @@
  *   origin(context, service?, { request })              the trusted origin a service is served on: scheme://host[:port]
  *   linkContext(context, { request, services })         { service, roots } that a page can embed for browser code
  *   routedService(global, hostname)                     the service the hosts map routes a host to, or undefined
+ *                                                       (null for a host listed with null: listed, not routed)
  *
  * Absolute URLs never come from a Host header. A Host header is chosen by the client, so a link built from it could
  * point a password-reset email at the attacker's domain. Origins come only from configuration: global.origins[service]
@@ -115,4 +116,4 @@ export const linkContext = (context, { request, services } = {}) => {
 
 /** Startup check: the mapped services without a global.origins entry (absolute links then use a mapped hostname). */
 export const servicesWithoutOrigins = (global = {}) =>
-  [...new Set(Object.values(global.hosts || {}))].filter((service) => !global.origins?.[service]);
+  [...new Set(Object.values(global.hosts || {}))].filter((service) => typeof service === 'string' && service && !global.origins?.[service]);
